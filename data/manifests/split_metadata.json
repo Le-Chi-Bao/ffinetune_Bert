@@ -1,0 +1,14 @@
+{
+  "seed": 42,
+  "validation_ratio": 0.1,
+  "split_method": "StratifiedGroupKFold",
+  "dataset_protocol": "research_clean",
+  "grouping_method": "near_duplicate_cluster",
+  "similarity_threshold": 0.9,
+  "label_mapping": {
+    "0": "World",
+    "1": "Sports",
+    "2": "Business",
+    "3": "Sci/Tech"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "tokenizer_name": "bert-base-uncased",
+  "total_samples_analyzed": 127306,
+  "mean": 51.38409815719605,
+  "median": 50.0,
+  "p90": 66.0,
+  "p95": 73.0,
+  "p99": 97.0,
+  "maximum": 233,
+  "percentage_gt_64": 11.898103781439994,
+  "percentage_gt_96": 1.0651501107567594,
+  "percentage_gt_128": 0.2529338758581685,
+  "percentage_gt_192": 0.018066705418440607
+}

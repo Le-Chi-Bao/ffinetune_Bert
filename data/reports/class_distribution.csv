@@ -1,0 +1,13 @@
+split,label,label_name,count,percentage
+train,0,World,26974,25.04
+train,1,Sports,26965,25.03
+train,2,Business,26914,24.98
+train,3,Sci/Tech,26882,24.95
+validation,0,World,2997,25.04
+validation,1,Sports,2996,25.03
+validation,2,Business,2991,24.99
+validation,3,Sci/Tech,2987,24.95
+test,0,World,1900,25.0
+test,1,Sports,1900,25.0
+test,2,Business,1900,25.0
+test,3,Sci/Tech,1900,25.0

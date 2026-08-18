@@ -1,0 +1,7 @@
+{
+  "exact_hash_overlap_count": 27,
+  "near_duplicate_overlap_count": 281,
+  "total_contaminated_test_rows": 281,
+  "decontaminated_test_rows": 7319,
+  "total_official_test_rows": 7600
+}

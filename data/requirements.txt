@@ -1,0 +1,26 @@
+# Thư viện xử lý dữ liệu và tính toán cốt lõi
+numpy>=1.16.6
+pandas>=1.0.0
+pyarrow>=6.0.0
+
+# Thư viện Machine Learning và xử lý văn bản
+scikit-learn>=0.24.0
+transformers>=4.0.0
+torch>=1.7.0
+
+# Thư viện hỗ trợ tiền xử lý và tiện ích
+datasets>=2.0.0
+tqdm>=4.35.0
+
+# Thư viện cho thuật toán LSH (Locality Sensitive Hashing)
+# Lưu ý: Có thể cần cài đặt từ GitHub và yêu cầu Cython
+# pip install git+https://github.com/mattilyra/LSH.git
+# hoặc sử dụng thư viện datasketch thay thế
+datasketch>=1.6.0
+
+# Thư viện khác
+# Có thể cần `sentencepiece` nếu bạn dùng một số tokenizer BPE
+# sentencepiece>=0.1.0
+
+# Lưu ý: Nếu cài lsh từ GitHub, cần Cython
+cython>=0.29.0

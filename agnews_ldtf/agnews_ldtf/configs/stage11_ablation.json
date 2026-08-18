@@ -1,0 +1,21 @@
+{
+  "stage": 11,
+  "seed": 42,
+  "base_model": "bert-base-uncased",
+  "training_regime": "from_stage10",
+  "train_path": "data/processed/research_train.parquet",
+  "validation_path": "data/processed/research_validation.parquet",
+  "max_length": 128,
+  "variants": [
+    {"name": "A0_full", "variant": "A0_full", "token_router_dim": 256, "depth_router_dim": 256},
+    {"name": "A1_no_token_router", "variant": "A1_no_token_router"},
+    {"name": "A2_no_depth_router", "variant": "A2_no_depth_router"},
+    {"name": "A3_final_layer", "variant": "A3_final_layer"},
+    {"name": "A4_shared_token_query", "variant": "A4_shared_token_query"},
+    {"name": "A5_shared_depth_query", "variant": "A5_shared_depth_query"},
+    {"name": "A6_class_specific_scorer", "variant": "A6_class_specific_scorer"},
+    {"name": "B1_router_dim64", "variant": "A0_full", "token_router_dim": 64, "depth_router_dim": 64},
+    {"name": "B2_router_dim128", "variant": "A0_full", "token_router_dim": 128, "depth_router_dim": 128},
+    {"name": "B4_exclude_special_tokens", "variant": "A0_full", "token_router_dim": 256, "depth_router_dim": 256, "exclude_special_tokens": true}
+  ]
+}

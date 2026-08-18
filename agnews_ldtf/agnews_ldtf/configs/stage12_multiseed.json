@@ -1,0 +1,24 @@
+{
+  "stage": 12,
+  "protocol_name": "agnews_ldtf_multiseed_v1",
+  "seeds": [0, 1, 2],
+  "train_path": "data/processed/research_train.parquet",
+  "validation_path": "data/processed/research_validation.parquet",
+  "data_quality_report": "data/reports/final_data_report.json",
+  "stage11_locked_config": "outputs/stage11/locked_stage12_config.json",
+  "output_root": "outputs/stage12",
+  "models": [
+    {
+      "experiment_name": "bert_baseline",
+      "model_type": "bert_baseline",
+      "config_source": "outputs/stage10/bert_baseline_finetune_seed42/config.json"
+    },
+    {
+      "experiment_name": "ldtf_selected",
+      "model_type": "from_stage11",
+      "config_source": "outputs/stage11/locked_stage12_config.json"
+    }
+  ],
+  "selection_metric": "validation_macro_f1",
+  "official_test_allowed": false
+}

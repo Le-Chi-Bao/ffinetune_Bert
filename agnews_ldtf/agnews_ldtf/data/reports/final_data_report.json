@@ -1,0 +1,92 @@
+{
+  "overall_status": "PASS",
+  "READY_FOR_OFFICIAL_TRAINING": true,
+  "critical_failures": [],
+  "data_cleaning_version": "v1-whitespace-normalization",
+  "dataset_protocol": "ag_news_stratified_90_10_research_split",
+  "source_dataset": "fancyzhx/ag_news",
+  "split_seed": 42,
+  "validation_size": 0.1,
+  "train_sample_count": 108000,
+  "validation_sample_count": 11991,
+  "label_mapping": {
+    "0": "World",
+    "1": "Sports",
+    "2": "Business",
+    "3": "Sci/Tech"
+  },
+  "train_manifest_checksum": "a7aaaa9fe529355f6817c10985c3873ae9cc8db132fefcd3aa619145876317c3",
+  "validation_manifest_checksum": "c5cdcf9ff5317469011144d1dab5bd646a634e3fa747a15fb2f4bd4f33e3a272",
+  "train_path": "data/processed/research_train.parquet",
+  "validation_path": "data/processed/research_validation.parquet",
+  "quality_reports": {
+    "train": {
+      "split": "train",
+      "num_samples": 108000,
+      "missing_text": 0,
+      "empty_text": 0,
+      "whitespace_only_text": 0,
+      "missing_labels": 0,
+      "invalid_labels": 0,
+      "duplicate_texts": 68,
+      "min_text_length": 100,
+      "max_text_length": 1012
+    },
+    "validation": {
+      "split": "validation",
+      "num_samples": 11991,
+      "missing_text": 0,
+      "empty_text": 0,
+      "whitespace_only_text": 0,
+      "missing_labels": 0,
+      "invalid_labels": 0,
+      "duplicate_texts": 2,
+      "min_text_length": 100,
+      "max_text_length": 976
+    }
+  },
+  "class_distributions": {
+    "train": {
+      "split": "train",
+      "total": 108000,
+      "counts": {
+        "World": 27000,
+        "Sports": 27000,
+        "Business": 27000,
+        "Sci/Tech": 27000
+      },
+      "percentages": {
+        "World": 25.0,
+        "Sports": 25.0,
+        "Business": 25.0,
+        "Sci/Tech": 25.0
+      }
+    },
+    "validation": {
+      "split": "validation",
+      "total": 11991,
+      "counts": {
+        "World": 3000,
+        "Sports": 2998,
+        "Business": 2996,
+        "Sci/Tech": 2997
+      },
+      "percentages": {
+        "World": 25.01876407305479,
+        "Sports": 25.00208489700609,
+        "Business": 24.985405720957385,
+        "Sci/Tech": 24.993745308981737
+      }
+    }
+  },
+  "overlap_report": {
+    "train_val_overlap": 0
+  },
+  "deduplication_report": {
+    "validation_rows_before": 12000,
+    "validation_rows_after": 11991,
+    "validation_rows_removed": 9,
+    "policy": "remove_validation_rows_duplicated_in_train"
+  },
+  "official_test_exported": false
+}
