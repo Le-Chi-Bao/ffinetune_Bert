@@ -1,0 +1,409 @@
+"""Build the Colab notebook from Python cell definitions.
+
+Usage:
+    python scripts/build_notebook.py notebooks/colab_finetune_vs_frozen.ipynb
+"""
+
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+
+NOTEBOOK_HEADER: dict[str, object] = {
+    "cells": [],
+    "metadata": {
+        "kernelspec": {
+            "display_name": "Python 3",
+            "language": "python",
+            "name": "python3",
+        },
+        "language_info": {
+            "name": "python",
+            "version": "3.10",
+            "mimetype": "text/x-python",
+            "codemirror_mode": {"name": "ipython", "version": 3},
+            "pygments_lexer": "ipython3",
+            "nbconvert_exporter": "python",
+            "file_extension": ".py",
+        },
+        "accelerator": "GPU",
+        "colab": {
+            "collapsed_cells": [],
+            "provenance": [],
+            "gpuType": "T4",
+        },
+    },
+    "nbformat": 4,
+    "nbformat_minor": 5,
+}
+
+
+def _markdown_cell(source: str) -> dict[str, object]:
+    """Wrap markdown text in a Jupyter cell dict."""
+    return {
+        "cell_type": "markdown",
+        "metadata": {},
+        "source": [line if line.endswith("\n") else line + "\n" for line in source.splitlines()],
+    }
+
+
+def _code_cell(source: str) -> dict[str, object]:
+    """Wrap code text in a Jupyter code cell dict."""
+    return {
+        "cell_type": "code",
+        "execution_count": None,
+        "metadata": {},
+        "outputs": [],
+        "source": [line if line.endswith("\n") else line + "\n" for line in source.splitlines()],
+    }
+
+
+def build_notebook() -> dict[str, object]:
+    """Assemble the 10-cell Colab notebook for fine-tune vs frozen encoder."""
+    notebook = dict(NOTEBOOK_HEADER)
+    cells: list[dict[str, object]] = []
+
+    cells.append(_markdown_cell(
+        "# LDTF-BERT on AG News — Fine-tune vs Frozen Encoder\n"
+        "\n"
+        "Notebook companion for the project in `src/`. Runs two experiments:\n"
+        "\n"
+        "* **A**: Fine-tune the full BERT encoder + 3 custom routers (`label_queries`,\n"
+        "  `token_router`, `depth_router`) + `class_scorer`.\n"
+        "* **B**: Freeze the BERT encoder; train only the routers and scorer.\n"
+        "\n"
+        "Cells are idempotent — re-running the notebook only rewrites the output\n"
+        "directory, never the source tree."
+    ))
+
+    cells.append(_code_cell(
+        "\"\"\"Cell 1: install dependencies. Idempotent; safe to re-run.\"\"\"\n"
+        "import subprocess, sys\n"
+        "\n"
+        "subprocess.check_call([sys.executable, \"-m\", \"pip\", \"install\", \"-q\",\n"
+        "                         \"torch\", \"transformers\", \"scikit-learn\",\n"
+        "                         \"pandas\", \"numpy\", \"pyarrow\", \"matplotlib\"])\n"
+        "print(\"[cell 1] dependencies ready\")"
+    ))
+
+    cells.append(_markdown_cell(
+        "## Cell 2 — Mount Drive and sync the project tree\n"
+        "\n"
+        "Assumes the project lives at `MyDrive/HocSau_LDTF_BERT/` on Drive. The cell\n"
+        "creates a symlink `/content/HocSau_LDTF_BERT -> /content/drive/MyDrive/...`\n"
+        "so that all outputs land back on Drive automatically."
+    ))
+
+    cells.append(_code_cell(
+        "\"\"\"Cell 2: mount Drive and symlink the project so checkpoints persist.\"\"\"\n"
+        "import os, pathlib\n"
+        "from google.colab import drive\n"
+        "\n"
+        "DRIVE_ROOT = pathlib.Path(\"/content/drive/MyDrive/HocSau_LDTF_BERT\")\n"
+        "PROJECT_ROOT = pathlib.Path(\"/content/HocSau_LDTF_BERT\")\n"
+        "\n"
+        "if not DRIVE_ROOT.exists():\n"
+        "    raise FileNotFoundError(\n"
+        "        f\"Project not found on Drive at {DRIVE_ROOT}. \"\n"
+        "        \"Copy the repo there first.\"\n"
+        "    )\n"
+        "\n"
+        "drive.mount(\"/content/drive\", force_remount=False)\n"
+        "if not PROJECT_ROOT.exists():\n"
+        "    os.symlink(DRIVE_ROOT, PROJECT_ROOT)\n"
+        "print(f\"[cell 2] project root -> {PROJECT_ROOT}\")\n"
+        "%cd {PROJECT_ROOT}\n"
+        "import sys; sys.path.insert(0, str(PROJECT_ROOT))"
+    ))
+
+    cells.append(_markdown_cell(
+        "## Cell 3 — Sanity check the data\n"
+        "\n"
+        "Load the parquet splits, print shapes and label distributions, and run a\n"
+        "tokenizer pass on a single batch."
+    ))
+
+    cells.append(_code_cell(
+        "\"\"\"Cell 3: load parquet splits and verify tokenization works on one batch.\"\"\"\n"
+        "import pandas as pd\n"
+        "from transformers import AutoTokenizer\n"
+        "\n"
+        "from src import config\n"
+        "from src.dataset import load_split, AgNewsDataset\n"
+        "\n"
+        "train_df = load_split(config.PROCESSED_TRAIN)\n"
+        "val_df   = load_split(config.PROCESSED_VAL)\n"
+        "test_df  = load_split(config.PROCESSED_TEST)\n"
+        "print(f\"[cell 3] train={len(train_df)}, val={len(val_df)}, test={len(test_df)}\")\n"
+        "print(\"[cell 3] label counts (train):\", train_df['label'].value_counts().to_dict())\n"
+        "\n"
+        "tokenizer = AutoTokenizer.from_pretrained(config.MODEL_NAME, use_fast=True)\n"
+        "sample = AgNewsDataset(train_df.head(2), tokenizer=tokenizer)\n"
+        "print(\"[cell 3] sample[0] keys:\", list(sample[0].__dict__.keys()))\n"
+        "print(\"[cell 3] input_ids shape:\", sample[0].input_ids.shape)"
+    ))
+
+    cells.append(_markdown_cell(
+        "## Cell 4 — Build the model and show parameter counts\n"
+        "\n"
+        "Constructs `LdtfBert`, prints parameter counts per module, and runs one\n"
+        "forward pass on a dummy batch to confirm shapes are correct."
+    ))
+
+    cells.append(_code_cell(
+        "\"\"\"Cell 4: build the model and confirm forward shapes.\"\"\"\n"
+        "import torch\n"
+        "from src.models import LdtfBert\n"
+        "\n"
+        "model = LdtfBert(model_name=config.MODEL_NAME, freeze_encoder=False)\n"
+        "counts = model.count_parameters()\n"
+        "for name, summary in counts.items():\n"
+        "    print(f\"  {name:>14}: total={summary['total']:,} \"\n"
+        "          f\"trainable={summary['trainable']:,} frozen={summary['frozen']:,}\")\n"
+        "\n"
+        "dummy = {\n"
+        "    \"input_ids\":      torch.zeros(2, config.MAX_LENGTH, dtype=torch.long),\n"
+        "    \"attention_mask\": torch.ones (2, config.MAX_LENGTH, dtype=torch.long),\n"
+        "    \"token_type_ids\": torch.zeros(2, config.MAX_LENGTH, dtype=torch.long),\n"
+        "}\n"
+        "with torch.inference_mode():\n"
+        "    out = model(**dummy)\n"
+        "print(\"logits shape:\", out[\"logits\"].shape)\n"
+        "print(\"token_attention shape:\", out[\"token_attention\"].shape)\n"
+        "print(\"depth_attention shape:\", out[\"depth_attention\"].shape)"
+    ))
+
+    cells.append(_markdown_cell(
+        "## Cell 5 — Experiment A: fine-tune (full backprop)\n"
+        "\n"
+        "Trains the full model end-to-end on the train split, evaluates on val each\n"
+        "epoch, and writes `outputs/finetune/best_model.pt` + JSON metrics."
+    ))
+
+    cells.append(_code_cell(
+        "\"\"\"Cell 5: fine-tune the full model (option A).\"\"\"\n"
+        "from src import config\n"
+        "from src.dataset import build_all_dataloaders\n"
+        "from src.evaluate import build_model_from_checkpoint, evaluate_checkpoint\n"
+        "from src.models import LdtfBert\n"
+        "from src.train import TrainConfig, train_model\n"
+        "from src.utils import set_seed\n"
+        "\n"
+        "set_seed(config.SEED)\n"
+        "tokenizer = LdtfBert.build_tokenizer(config.MODEL_NAME)\n"
+        "loaders = build_all_dataloaders(tokenizer=tokenizer)\n"
+        "\n"
+        "model = LdtfBert(model_name=config.MODEL_NAME, freeze_encoder=False)\n"
+        "cfg = TrainConfig(output_dir=config.FINETUNE_OUTPUT, freeze_encoder=False)\n"
+        "result = train_model(model=model, train_loader=loaders[\"train\"],\n"
+        "                     val_loader=loaders[\"validation\"], train_config=cfg)\n"
+        "print(f\"[cell 5] best val acc={result.best_val_accuracy:.4f} @ epoch={result.best_epoch}\")\n"
+        "\n"
+        "eval_model = build_model_from_checkpoint(config.FINETUNE_OUTPUT / \"best_model.pt\")\n"
+        "test_metrics = evaluate_checkpoint(\n"
+        "    model=eval_model, dataloader=loaders[\"test\"],\n"
+        "    checkpoint_path=config.FINETUNE_OUTPUT / \"best_model.pt\",\n"
+        "    output_path=config.FINETUNE_OUTPUT / \"test_metrics.json\",\n"
+        ")\n"
+        "print(f\"[cell 5] test acc={test_metrics['accuracy']:.4f} \"\n"
+        "      f\"f1_macro={test_metrics['f1_macro']:.4f}\")"
+    ))
+
+    cells.append(_markdown_cell(
+        "## Cell 6 — Experiment B: frozen encoder\n"
+        "\n"
+        "Same data, but only the routers and scorer receive gradient updates; BERT is\n"
+        "frozen."
+    ))
+
+    cells.append(_code_cell(
+        "\"\"\"Cell 6: frozen-encoder experiment (option B).\"\"\"\n"
+        "from src import config\n"
+        "from src.dataset import build_all_dataloaders\n"
+        "from src.evaluate import build_model_from_checkpoint, evaluate_checkpoint\n"
+        "from src.models import LdtfBert\n"
+        "from src.train import TrainConfig, train_model\n"
+        "from src.utils import set_seed\n"
+        "\n"
+        "set_seed(config.SEED)\n"
+        "tokenizer = LdtfBert.build_tokenizer(config.MODEL_NAME)\n"
+        "loaders = build_all_dataloaders(tokenizer=tokenizer)\n"
+        "\n"
+        "model = LdtfBert(model_name=config.MODEL_NAME, freeze_encoder=True)\n"
+        "cfg = TrainConfig(output_dir=config.FROZEN_OUTPUT, freeze_encoder=True)\n"
+        "result = train_model(model=model, train_loader=loaders[\"train\"],\n"
+        "                     val_loader=loaders[\"validation\"], train_config=cfg)\n"
+        "print(f\"[cell 6] best val acc={result.best_val_accuracy:.4f} @ epoch={result.best_epoch}\")\n"
+        "\n"
+        "eval_model = build_model_from_checkpoint(config.FROZEN_OUTPUT / \"best_model.pt\")\n"
+        "test_metrics = evaluate_checkpoint(\n"
+        "    model=eval_model, dataloader=loaders[\"test\"],\n"
+        "    checkpoint_path=config.FROZEN_OUTPUT / \"best_model.pt\",\n"
+        "    output_path=config.FROZEN_OUTPUT / \"test_metrics.json\",\n"
+        ")\n"
+        "print(f\"[cell 6] test acc={test_metrics['accuracy']:.4f} \"\n"
+        "      f\"f1_macro={test_metrics['f1_macro']:.4f}\")"
+    ))
+
+    cells.append(_markdown_cell(
+        "## Cell 7 — Build comparison table\n"
+        "\n"
+        "Loads both `val_metrics.json` and `test_metrics.json` files and prints a\n"
+        "single comparison DataFrame."
+    ))
+
+    cells.append(_code_cell(
+        "\"\"\"Cell 7: build the comparison DataFrame from JSON metrics.\"\"\"\n"
+        "import pandas as pd\n"
+        "from src.utils import load_json\n"
+        "\n"
+        "def _row(name, val_path, test_path):\n"
+        "    val = load_json(val_path)\n"
+        "    test = load_json(test_path)\n"
+        "    return {\n"
+        "        \"experiment\": name,\n"
+        "        \"best_val_acc\": val[\"best_val_accuracy\"],\n"
+        "        \"best_epoch\": val[\"best_epoch\"],\n"
+        "        \"test_acc\": test[\"accuracy\"],\n"
+        "        \"test_f1_macro\": test[\"f1_macro\"],\n"
+        "        \"test_f1_weighted\": test[\"f1_weighted\"],\n"
+        "    }\n"
+        "\n"
+        "rows = [\n"
+        "    _row(\"finetune\",\n"
+        "         config.FINETUNE_OUTPUT / \"val_metrics.json\",\n"
+        "         config.FINETUNE_OUTPUT / \"test_metrics.json\"),\n"
+        "    _row(\"frozen\",\n"
+        "         config.FROZEN_OUTPUT  / \"val_metrics.json\",\n"
+        "         config.FROZEN_OUTPUT  / \"test_metrics.json\"),\n"
+        "]\n"
+        "df = pd.DataFrame(rows)\n"
+        "print(df.to_string(index=False))"
+    ))
+
+    cells.append(_markdown_cell(
+        "## Cell 8 — Plot training curves\n"
+        "\n"
+        "Two side-by-side panels: training loss and validation accuracy across epochs\n"
+        "for both experiments."
+    ))
+
+    cells.append(_code_cell(
+        "\"\"\"Cell 8: plot training/validation curves for both experiments.\"\"\"\n"
+        "import matplotlib.pyplot as plt\n"
+        "from src.utils import load_json\n"
+        "\n"
+        "history = {\n"
+        "    \"finetune\": load_json(config.FINETUNE_OUTPUT / \"val_metrics.json\")[\"history\"],\n"
+        "    \"frozen\":   load_json(Config.FROZEN_OUTPUT  / \"val_metrics.json\")[\"history\"],\n"
+        "}\n"
+        "if \"Config\" not in dir():\n"
+        "    from src import config as Config\n"
+        "history = {\n"
+        "    \"finetune\": load_json(Config.FINETUNE_OUTPUT / \"val_metrics.json\")[\"history\"],\n"
+        "    \"frozen\":   load_json(Config.FROZEN_OUTPUT  / \"val_metrics.json\")[\"history\"],\n"
+        "}\n"
+        "\n"
+        "fig, axes = plt.subplots(1, 2, figsize=(12, 4))\n"
+        "for name, hist in history.items():\n"
+        "    epochs = [r[\"epoch\"] for r in hist]\n"
+        "    axes[0].plot(epochs, [r[\"train_loss\"] for r in hist], marker=\"o\", label=name)\n"
+        "    axes[1].plot(epochs, [r[\"val_accuracy\"] for r in hist], marker=\"o\", label=name)\n"
+        "axes[0].set(title=\"Training Loss\", xlabel=\"Epoch\", ylabel=\"Loss\"); axes[0].legend(); axes[0].grid(True, ls=\"--\", alpha=.5)\n"
+        "axes[1].set(title=\"Validation Accuracy\", xlabel=\"Epoch\", ylabel=\"Accuracy\"); axes[1].legend(); axes[1].grid(True, ls=\"--\", alpha=.5)\n"
+        "fig.tight_layout()\n"
+        "fig.savefig(Config.FIGURES_DIR / \"loss_curve.png\", dpi=150)\n"
+        "plt.show()"
+    ))
+
+    cells.append(_markdown_cell(
+        "## Cell 9 — Confusion matrices\n"
+        "\n"
+        "One row × two columns: confusion matrices for fine-tune vs frozen on the\n"
+        "test split."
+    ))
+
+    cells.append(_code_cell(
+        "\"\"\"Cell 9: render confusion matrices for both experiments.\"\"\"\n"
+        "import numpy as np\n"
+        "import matplotlib.pyplot as plt\n"
+        "from src.utils import load_json\n"
+        "\n"
+        "tests = {\n"
+        "    \"finetune\": load_json(config.FINETUNE_OUTPUT / \"test_metrics.json\"),\n"
+        "    \"frozen\":   load_json(config.FROZEN_OUTPUT  / \"test_metrics.json\"),\n"
+        "}\n"
+        "fig, axes = plt.subplots(1, len(tests), figsize=(5 * len(tests), 4))\n"
+        "if len(tests) == 1: axes = [axes]\n"
+        "for ax, (name, metrics) in zip(axes, tests.items()):\n"
+        "    matrix = np.asarray(metrics[\"confusion_matrix\"])\n"
+        "    ax.imshow(matrix, cmap=\"Blues\")\n"
+        "    ax.set(title=f\"Confusion: {name}\",\n"
+        "           xticks=range(len(config.LABEL_NAMES)), xticklabels=config.LABEL_NAMES,\n"
+        "           yticks=range(len(config.LABEL_NAMES)), yticklabels=config.LABEL_NAMES,\n"
+        "           xlabel=\"Predicted\", ylabel=\"True\")\n"
+        "    ax.set_xticklabels(config.LABEL_NAMES, rotation=30, ha=\"right\")\n"
+        "    for i in range(matrix.shape[0]):\n"
+        "        for j in range(matrix.shape[1]):\n"
+        "            ax.text(j, i, int(matrix[i, j]), ha=\"center\", va=\"center\", color=\"black\")\n"
+        "fig.tight_layout()\n"
+        "fig.savefig(config.FIGURES_DIR / \"confusion.png\", dpi=150)\n"
+        "plt.show()"
+    ))
+
+    cells.append(_markdown_cell(
+        "## Cell 10 — Persist reports to Drive\n"
+        "\n"
+        "Writes `comparison.{csv,md,json}` and the PNGs to `reports/` (which already\n"
+        "lives on Drive via the symlink from cell 2)."
+    ))
+
+    cells.append(_code_cell(
+        "\"\"\"Cell 10: persist CSV/Markdown comparison + figures to reports/.\"\"\"\n"
+        "import pandas as pd\n"
+        "from src.utils import load_json, save_json\n"
+        "\n"
+        "rows = [\n"
+        "    {\n"
+        "        \"experiment\": \"finetune\",\n"
+        "        \"best_val_accuracy\": load_json(config.FINETUNE_OUTPUT / \"val_metrics.json\")[\"best_val_accuracy\"],\n"
+        "        \"best_epoch\": load_json(config.FINETUNE_OUTPUT / \"val_metrics.json\")[\"best_epoch\"],\n"
+        "        \"test_accuracy\": load_json(config.FINETUNE_OUTPUT / \"test_metrics.json\")[\"accuracy\"],\n"
+        "        \"test_f1_macro\": load_json(config.FINETUNE_OUTPUT / \"test_metrics.json\")[\"f1_macro\"],\n"
+        "        \"test_f1_weighted\": load_json(config.FINETUNE_OUTPUT / \"test_metrics.json\")[\"f1_weighted\"],\n"
+        "    },\n"
+        "    {\n"
+        "        \"experiment\": \"frozen\",\n"
+        "        \"best_val_accuracy\": load_json(config.FROZEN_OUTPUT / \"val_metrics.json\")[\"best_val_accuracy\"],\n"
+        "        \"best_epoch\": load_json(config.FROZEN_OUTPUT / \"val_metrics.json\")[\"best_epoch\"],\n"
+        "        \"test_accuracy\": load_json(config.FROZEN_OUTPUT / \"test_metrics.json\")[\"accuracy\"],\n"
+        "        \"test_f1_macro\": load_json(config.FROZEN_OUTPUT / \"test_metrics.json\")[\"f1_macro\"],\n"
+        "        \"test_f1_weighted\": load_json(config.FROZEN_OUTPUT / \"test_metrics.json\")[\"f1_weighted\"],\n"
+        "    },\n"
+        "]\n"
+        "df = pd.DataFrame(rows)\n"
+        "df.to_csv(config.REPORTS_DIR / \"comparison.csv\", index=False)\n"
+        "(config.REPORTS_DIR / \"comparison.md\").write_text(\n"
+        "    df.to_markdown(index=False, floatfmt=\".4f\"), encoding=\"utf-8\")\n"
+        "save_json({\"summary\": df.to_dict(orient=\"records\")}, config.REPORTS_DIR / \"comparison.json\")\n"
+        "print(\"[cell 10] wrote\", config.REPORTS_DIR / \"comparison.csv\")\n"
+        "print(\"[cell 10] figures:\", list(config.FIGURES_DIR.iterdir()))"
+    ))
+
+    notebook["cells"] = cells
+    return notebook
+
+
+def main() -> None:
+    """Write the notebook to the destination path provided on the command line."""
+    if len(sys.argv) != 2:
+        raise SystemExit("usage: build_notebook.py <output.ipynb>")
+    destination = Path(sys.argv[1])
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(json.dumps(build_notebook(), indent=1, ensure_ascii=False), encoding="utf-8")
+    print(f"[build_notebook] wrote {destination} with {len(build_notebook()['cells'])} cells")
+
+
+if __name__ == "__main__":
+    main()

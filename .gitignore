@@ -1,0 +1,38 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$*$py.class
+
+# Caches
+.cache/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Distribution / packaging
+*.egg-info/
+build/
+dist/
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Local outputs (checkpoints, predictions, logs)
+outputs/finetune/best_model.pt
+outputs/frozen/best_model.pt
+outputs/finetune/train_log.json
+outputs/frozen/train_log.json
+
+# Large report artifacts (kept under reports/figures but allow source files)
+reports/predictions/*.jsonl
+
+# Colab artifacts
+.ipynb_checkpoints/
